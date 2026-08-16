@@ -6,7 +6,8 @@ import { signAccessToken, signRefreshToken } from "@/lib/auth/jwt";
 
 // Hash of an unused fixed string. Compared against when no user is found so that a
 // missing email doesn't respond faster than a wrong password (timing side-channel).
-const DUMMY_HASH = "$2b$10$BbyFHFnqnBOAit2FHd0CBujRvbcJwphKnkNpAH24o3O.kU.qhVyVG";
+const DUMMY_HASH = "$2b$12$wI1VLiYydpVZpHhBiiiwdOavBLsJEEHa0idgam7Bw20wg0ay1WpHu"; // Hash of an unused fixed string, generated with the SAME cost factor as
+// BCRYPT_SALT_ROUNDS (12) so real vs. non-existent users take equal time to verify. 
 
 const INVALID_CREDENTIALS_MESSAGE = "Email hoặc mật khẩu không đúng";
 
