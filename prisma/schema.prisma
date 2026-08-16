@@ -11,3 +11,86 @@ generator client {
 datasource db {
   provider = "postgresql"
 }
+
+enum SeriesType {
+  MANGA
+  LIGHT_NOVEL
+}
+
+enum SeriesSource {
+  SYSTEM
+  USER_CREATED
+}
+
+enum CollectionEdition {
+  REGULAR
+  SPECIAL
+  COLLECTOR
+}
+
+model User {
+  id           String   @id @default(uuid())
+  email        String   @unique
+  passwordHash String
+  displayName  String
+  language     String   @default("vi")
+  currency     String   @default("VND")
+  theme        String   @default("light")
+  createdAt    DateTime @default(now())
+
+  createdSeries Series[]
+  collections   UserCollection[]
+}
+
+model Series {
+  id          String       @id @default(uuid())
+  title       String
+  coverUrl    String?
+  type        SeriesType
+  source      SeriesSource
+  genres      String[]
+  createdById String?
+
+  // User xoá tài khoản không kéo theo xoá Series họ tạo — chỉ gỡ liên kết chủ sở hữu.
+  createdBy User?    @relation(fields: [createdById], references: [id], onDelete: SetNull)
+  volumes   Volume[]
+
+  @@index([createdById])
+}
+
+model Volume {
+  id           String    @id @default(uuid())
+  seriesId     String
+  volumeNumber Int
+  releaseDate  DateTime? @db.Date
+
+  // Volume là con của Series, xoá Series thì xoá luôn các Volume của nó.
+  series      Series           @relation(fields: [seriesId], references: [id], onDelete: Cascade)
+  collections UserCollection[]
+
+  @@index([seriesId])
+}
+
+model UserCollection {
+  id           String            @id @default(uuid())
+  userId       String
+  volumeId     String
+  owned        Boolean           @default(false)
+  edition      CollectionEdition
+  price        Decimal?          @db.Decimal(10, 2)
+  purchaseDate DateTime?         @db.Date
+
+  // Xoá User -> xoá luôn bản ghi sưu tầm của họ. Xoá Volume -> bản ghi sưu tầm trỏ tới nó cũng hết ý nghĩa.
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  volume Volume @relation(fields: [volumeId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, volumeId])
+  @@index([userId])
+  @@index([volumeId])
+}
+
+model Publisher {
+  id      String @id @default(uuid())
+  name    String
+  country String
+}
