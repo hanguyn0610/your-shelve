@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { loginSchema } from "@/lib/validation/auth";
 import { verifyPassword } from "@/lib/auth/password";
 import { signAccessToken, signRefreshToken } from "@/lib/auth/jwt";
+import { setAuthCookies } from "@/lib/auth/setAuthCookies";
 
 // Hash of an unused fixed string. Compared against when no user is found so that a
 // missing email doesn't respond faster than a wrong password (timing side-channel).
@@ -34,7 +35,9 @@ export async function POST(request: Request) {
   const accessToken = signAccessToken({ userId: user.id });
   const refreshToken = signRefreshToken({ userId: user.id });
 
-  return NextResponse.json(
+  // httpOnly cookies are the real auth source for the browser; tokens are still
+  // returned in the body too so curl/Postman (no cookie jar) can keep working.
+  const response = NextResponse.json(
     {
       user: {
         id: user.id,
@@ -50,4 +53,6 @@ export async function POST(request: Request) {
     },
     { status: 200 },
   );
+  setAuthCookies(response, accessToken, refreshToken);
+  return response;
 }

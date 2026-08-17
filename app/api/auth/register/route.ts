@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { registerSchema } from "@/lib/validation/auth";
 import { hashPassword } from "@/lib/auth/password";
 import { signAccessToken, signRefreshToken } from "@/lib/auth/jwt";
+import { setAuthCookies } from "@/lib/auth/setAuthCookies";
 
 export async function POST(request: Request) {
   const body = await request.json().catch(() => null);
@@ -40,5 +41,9 @@ export async function POST(request: Request) {
   const accessToken = signAccessToken({ userId: user.id });
   const refreshToken = signRefreshToken({ userId: user.id });
 
-  return NextResponse.json({ user, accessToken, refreshToken }, { status: 201 });
+  // httpOnly cookies are the real auth source for the browser; tokens are still
+  // returned in the body too so curl/Postman (no cookie jar) can keep working.
+  const response = NextResponse.json({ user, accessToken, refreshToken }, { status: 201 });
+  setAuthCookies(response, accessToken, refreshToken);
+  return response;
 }
