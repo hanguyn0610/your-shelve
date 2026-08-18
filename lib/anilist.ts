@@ -2,11 +2,15 @@ const ANILIST_API_URL = process.env.ANILIST_API_URL ?? "https://graphql.anilist.
 const REQUEST_TIMEOUT_MS = 8000;
 const MIN_PER_PAGE = 1;
 const MAX_PER_PAGE = 50;
+// Fixed product decision, not a user-selectable filter: AniList's "format" field
+// (MANGA/NOVEL) only distinguishes medium, not country of origin — without this,
+// trending results mix in Korean manhwa and Chinese manhua alongside Japanese manga.
+const JAPAN_COUNTRY_CODE = "JP";
 
 const TRENDING_MEDIA_QUERY = `
-  query TrendingMedia($page: Int!, $perPage: Int!, $format: [MediaFormat]) {
+  query TrendingMedia($page: Int!, $perPage: Int!, $format: [MediaFormat], $countryOfOrigin: CountryCode) {
     Page(page: $page, perPage: $perPage) {
-      media(type: MANGA, format_in: $format, sort: TRENDING_DESC) {
+      media(type: MANGA, format_in: $format, countryOfOrigin: $countryOfOrigin, sort: TRENDING_DESC) {
         id
         title {
           romaji
@@ -74,8 +78,9 @@ export async function fetchTrendingMedia(
         query: TRENDING_MEDIA_QUERY,
         // AniList filters (format_in) and paginates in the same step, so passing the
         // format here — instead of slicing the response afterward — is what keeps
-        // perPage accurate for a filtered request.
-        variables: { page, perPage, format: format ? [format] : undefined },
+        // perPage accurate for a filtered request. countryOfOrigin is always "JP",
+        // never taken from the caller — see JAPAN_COUNTRY_CODE above.
+        variables: { page, perPage, format: format ? [format] : undefined, countryOfOrigin: JAPAN_COUNTRY_CODE },
       }),
       signal: controller.signal,
     });
