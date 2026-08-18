@@ -33,6 +33,8 @@ export async function GET(request: Request) {
   }
 
   const { page, perPage, format } = parsed.data;
+  // countryOfOrigin (JP) is fixed inside fetchTrendingMedia, not a request-varying
+  // input here, so it deliberately isn't part of the cache key.
   const cacheKey = `trending:${page}:${perPage}:${format ?? "ALL"}`;
 
   try {
