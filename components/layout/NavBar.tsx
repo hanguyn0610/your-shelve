@@ -28,7 +28,7 @@ export function NavBar() {
   };
 
   return (
-    <header className="border-b border-neutral-200 dark:border-neutral-800">
+    <header className="relative z-20 border-b border-neutral-200 dark:border-neutral-800">
       <div className="mx-auto flex h-14 max-w-6xl items-center justify-between px-4">
         <div className="flex items-center gap-6">
           <Link href="/" className="text-lg font-semibold">
