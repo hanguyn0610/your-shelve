@@ -28,6 +28,25 @@ const TRENDING_MEDIA_QUERY = `
   }
 `;
 
+const MEDIA_BY_ID_QUERY = `
+  query MediaById($id: Int!) {
+    Media(id: $id, type: MANGA) {
+      id
+      title {
+        romaji
+        english
+      }
+      coverImage {
+        large
+      }
+      format
+      genres
+      description
+      popularity
+    }
+  }
+`;
+
 export interface AniListMediaTitle {
   romaji: string | null;
   english: string | null;
@@ -46,6 +65,11 @@ export interface AniListMedia {
 
 interface AniListGraphQLResponse {
   data?: { Page: { media: AniListMedia[] } };
+  errors?: { message: string }[];
+}
+
+interface AniListMediaByIdResponse {
+  data?: { Media: AniListMedia | null };
   errors?: { message: string }[];
 }
 
@@ -107,4 +131,57 @@ export async function fetchTrendingMedia(
   }
 
   return json.data.Page.media;
+}
+
+export async function fetchMediaById(anilistId: number): Promise<AniListMedia | null> {
+  if (!Number.isInteger(anilistId) || anilistId < 1) {
+    throw new Error("anilistId phải là số nguyên dương");
+  }
+
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+
+  let response: Response;
+  try {
+    response = await fetch(ANILIST_API_URL, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Accept: "application/json",
+      },
+      body: JSON.stringify({
+        query: MEDIA_BY_ID_QUERY,
+        variables: { id: anilistId },
+      }),
+      signal: controller.signal,
+    });
+  } catch (error) {
+    if (error instanceof Error && error.name === "AbortError") {
+      throw new Error("Yêu cầu tới AniList quá thời gian chờ (timeout)");
+    }
+    throw new Error("Không thể kết nối tới AniList");
+  } finally {
+    clearTimeout(timeoutId);
+  }
+
+  // AniList responds with HTTP 404 (plus a "Not Found." GraphQL error alongside
+  // data.Media: null) for an id that doesn't exist — verified against the live API.
+  // That's this function's legitimate "doesn't exist" case, not a failure to throw for.
+  if (response.status === 404) {
+    return null;
+  }
+  if (!response.ok) {
+    throw new Error(`AniList trả về lỗi (status ${response.status})`);
+  }
+
+  const json = (await response.json()) as AniListMediaByIdResponse;
+
+  if (json.errors?.length && !json.data?.Media) {
+    throw new Error(`AniList trả về lỗi: ${json.errors.map((e) => e.message).join("; ")}`);
+  }
+  if (!json.data) {
+    throw new Error("AniList trả về dữ liệu không hợp lệ");
+  }
+
+  return json.data.Media;
 }

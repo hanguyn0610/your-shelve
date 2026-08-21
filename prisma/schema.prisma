@@ -50,6 +50,9 @@ model Series {
   source      SeriesSource
   genres      String[]
   createdById String?
+  // Set only for series imported from AniList's trending list — lets us detect "this
+  // AniList entry was already added" and avoid creating duplicate Series for it.
+  anilistId   Int?         @unique
 
   // User xoá tài khoản không kéo theo xoá Series họ tạo — chỉ gỡ liên kết chủ sở hữu.
   createdBy User?    @relation(fields: [createdById], references: [id], onDelete: SetNull)

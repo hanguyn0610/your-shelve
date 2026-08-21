@@ -104,21 +104,18 @@ export function useCollections(seriesId?: string): UseCollectionsResult {
     if (!response.ok) {
       throw new Error(await parseErrorMessage(response));
     }
-    const updated = (await response.json()) as Omit<CollectionItem, "volume">;
+    // The route includes volume/series in its response, so this is always a complete
+    // CollectionItem — meaning the very first time a volume is collected (not just
+    // subsequent edits) can also be merged in directly, no refetch needed.
+    const updated = (await response.json()) as CollectionItem;
 
     setItems((prev) => {
       const index = prev.findIndex((item) => item.volumeId === volumeId);
       if (index === -1) {
-        // Wasn't part of the currently loaded list (e.g. never fetched yet) — the PUT
-        // response doesn't carry volume/series info to merge in locally, so this one
-        // case falls back to a refetch instead of leaving stale/incomplete data.
-        setReloadToken((token) => token + 1);
-        return prev;
+        return [...prev, updated];
       }
       const next = [...prev];
-      const existing = next[index];
-      if (!existing) return prev;
-      next[index] = { ...existing, ...updated };
+      next[index] = updated;
       return next;
     });
   }, []);

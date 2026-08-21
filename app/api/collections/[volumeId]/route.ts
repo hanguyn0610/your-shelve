@@ -32,6 +32,10 @@ export async function PUT(request: Request, context: RouteContext<"/api/collecti
 
   // userId comes from the verified token, never from the body — the compound key below
   // ties the write to the current user regardless of what volumeId is requested.
+  // Includes volume/series (matching GET /api/collections' shape) so the client can
+  // merge this response straight into local state even the first time this volume is
+  // collected — without it, the client can't tell what series/volume it belongs to
+  // and has to fall back to refetching the whole list.
   const collection = await prisma.userCollection.upsert({
     where: { userId_volumeId: { userId, volumeId } },
     create: {
@@ -47,6 +51,11 @@ export async function PUT(request: Request, context: RouteContext<"/api/collecti
       edition,
       price: priceValue,
       purchaseDate: purchaseDateValue,
+    },
+    include: {
+      volume: {
+        include: { series: true },
+      },
     },
   });
 

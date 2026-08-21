@@ -15,7 +15,12 @@ export async function POST(request: Request, context: RouteContext<"/api/series/
   if (!series) {
     return NextResponse.json({ error: "Không tìm thấy series" }, { status: 404 });
   }
-  if (series.createdById !== userId) {
+  // SYSTEM series have no single owner — their volume data (e.g. imported from
+  // AniList trending) is shared across every user, so any authenticated user may add
+  // a volume to it. USER_CREATED series still require createdById to match — this
+  // check only gates adding a volume, not editing/deleting the series itself.
+  const canAddVolume = series.source === "SYSTEM" || series.createdById === userId;
+  if (!canAddVolume) {
     return NextResponse.json({ error: "Bạn không có quyền thực hiện thao tác này" }, { status: 403 });
   }
 
