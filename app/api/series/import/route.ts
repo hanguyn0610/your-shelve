@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { Prisma } from "@/app/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
 import { getCurrentUser } from "@/lib/auth/getCurrentUser";
 import { importSeriesSchema } from "@/lib/validation/series";
@@ -42,19 +43,46 @@ export async function POST(request: Request) {
   const title = media.title.romaji ?? media.title.english ?? "Không có tên";
   const type = media.format === "NOVEL" ? "LIGHT_NOVEL" : "MANGA";
 
-  const series = await prisma.series.upsert({
-    where: { anilistId },
-    create: {
-      anilistId,
-      title,
-      coverUrl: media.coverImage.large ?? undefined,
-      type,
-      genres: media.genres.slice(0, 10),
-      source: "SYSTEM",
-      createdById: null,
-    },
-    update: {},
-  });
+  // create() + catch P2002 (unique constraint on anilistId) instead of upsert(), because
+  // upsert() doesn't report whether it took the create or update branch — and that's
+  // exactly what decides whether volumes get auto-created below.
+  let series;
+  let isNewSeries: boolean;
+  try {
+    series = await prisma.series.create({
+      data: {
+        anilistId,
+        title,
+        coverUrl: media.coverImage.large ?? undefined,
+        type,
+        genres: media.genres.slice(0, 10),
+        source: "SYSTEM",
+        createdById: null,
+      },
+    });
+    isNewSeries = true;
+  } catch (error) {
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
+      series = await prisma.series.findUniqueOrThrow({ where: { anilistId } });
+      isNewSeries = false;
+    } else {
+      throw error;
+    }
+  }
+
+  // Only pre-populate volumes for a brand-new series, and only when AniList reports a
+  // fixed volume count — an ongoing series (volumes: null) is left for the user to add
+  // to manually via the "+" button.
+  if (isNewSeries && Number.isInteger(media.volumes) && (media.volumes as number) > 0) {
+    const totalVolumes = media.volumes as number;
+    await prisma.volume.createMany({
+      data: Array.from({ length: totalVolumes }, (_, index) => ({
+        seriesId: series.id,
+        volumeNumber: index + 1,
+        releaseDate: null,
+      })),
+    });
+  }
 
   return NextResponse.json(series);
 }

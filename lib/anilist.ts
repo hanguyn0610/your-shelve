@@ -43,6 +43,7 @@ const MEDIA_BY_ID_QUERY = `
       genres
       description
       popularity
+      volumes
     }
   }
 `;
@@ -61,6 +62,10 @@ export interface AniListMedia {
   genres: string[];
   description: string | null;
   popularity: number;
+  // Total volume count, or null when AniList doesn't know yet (an ongoing series).
+  // Only fetchMediaById() requests this field — fetchTrendingMedia() results never
+  // have it, hence optional rather than always number | null.
+  volumes?: number | null;
 }
 
 interface AniListGraphQLResponse {

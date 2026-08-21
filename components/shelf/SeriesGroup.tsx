@@ -1,7 +1,8 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type FormEvent } from "react";
 import Image from "next/image";
+import { motion } from "framer-motion";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -33,6 +34,115 @@ type EditVolumeFormOutput = z.output<typeof editVolumeFormSchema>;
 
 function formatCurrency(amount: number): string {
   return `${new Intl.NumberFormat("vi-VN").format(amount)} đ`;
+}
+
+const SPARKLE_OFFSETS = [
+  { x: -10, y: -9, delay: 0 },
+  { x: 10, y: -7, delay: 0.06 },
+];
+const SPARKLE_LIFETIME_MS = 450;
+
+// Detects the false -> true transition of `owned` during render (React's blessed
+// "adjusting state when a prop changes" pattern, not an effect) so the sparkle burst
+// only plays on an actual tick, never on remount or unrelated re-renders. The effect
+// below only ever calls setState inside the setTimeout callback, not in its own body.
+function useJustTicked(owned: boolean): boolean {
+  const [prevOwned, setPrevOwned] = useState(owned);
+  const [showSparkle, setShowSparkle] = useState(false);
+
+  if (owned !== prevOwned) {
+    setPrevOwned(owned);
+    if (owned) {
+      setShowSparkle(true);
+    }
+  }
+
+  useEffect(() => {
+    if (!showSparkle) return;
+    const timeout = setTimeout(() => setShowSparkle(false), SPARKLE_LIFETIME_MS);
+    return () => clearTimeout(timeout);
+  }, [showSparkle]);
+
+  return showSparkle;
+}
+
+interface AnimatedCheckboxProps {
+  owned: boolean;
+  onToggle: () => void;
+  label: string;
+}
+
+function AnimatedCheckbox({ owned, onToggle, label }: AnimatedCheckboxProps) {
+  const showSparkle = useJustTicked(owned);
+
+  return (
+    <span className="relative inline-flex h-4 w-4 shrink-0 items-center justify-center">
+      <motion.button
+        type="button"
+        role="checkbox"
+        aria-checked={owned}
+        aria-label={label}
+        onClick={(event) => {
+          event.stopPropagation();
+          onToggle();
+        }}
+        initial={false}
+        animate={{ scale: owned ? 1 : 0.85 }}
+        transition={owned ? { type: "spring", stiffness: 500, damping: 15 } : { duration: 0.15, ease: "easeOut" }}
+        className="flex h-4 w-4 items-center justify-center rounded-[4px] border border-current"
+      >
+        <svg viewBox="0 0 24 24" className="h-3 w-3">
+          <motion.path
+            d="M4 12.5l5 5L20 6"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth={3.5}
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            initial={false}
+            animate={{ pathLength: owned ? 1 : 0, opacity: owned ? 1 : 0 }}
+            transition={owned ? { duration: 0.3, ease: "easeInOut" } : { duration: 0.15, ease: "easeOut" }}
+          />
+        </svg>
+      </motion.button>
+
+      {showSparkle &&
+        SPARKLE_OFFSETS.map((offset, index) => (
+          <motion.span
+            key={index}
+            className="pointer-events-none absolute left-1/2 top-1/2 h-1 w-1 rounded-full bg-current"
+            initial={{ x: 0, y: 0, opacity: 1, scale: 1 }}
+            animate={{ x: offset.x, y: offset.y, opacity: 0, scale: 0 }}
+            transition={{ duration: 0.4, ease: "easeOut", delay: offset.delay }}
+          />
+        ))}
+    </span>
+  );
+}
+
+// The React-programmatic-set-value trick: bypasses React's tracked <input> value setter
+// so dispatching a real "input" event afterward is picked up by React (and therefore
+// react-hook-form's own onChange) as if the user had actually typed it.
+function setNativeInputValue(input: HTMLInputElement, value: string) {
+  const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, "value")?.set;
+  setter?.call(input, value);
+  input.dispatchEvent(new Event("input", { bubbles: true }));
+}
+
+// Simplest version of the "VND zero-suggestion" trick: only the very first digit typed
+// into an empty price field is intercepted (rewritten to "{digit}000" with the cursor
+// placed right before the zeros); every keystroke after that behaves like a plain text
+// input, since the cursor sitting before "000" makes further typing insert in the right
+// place naturally.
+function handlePriceBeforeInput(event: FormEvent<HTMLInputElement>) {
+  const input = event.currentTarget;
+  const nativeEvent = event.nativeEvent as InputEvent;
+  const data = nativeEvent.data;
+  if (input.value === "" && data && /^[0-9]$/.test(data)) {
+    event.preventDefault();
+    setNativeInputValue(input, `${data}000`);
+    input.setSelectionRange(1, 1);
+  }
 }
 
 interface SeriesGroupProps {
@@ -87,13 +197,10 @@ export function SeriesGroup({ series, items, onUpdate, onRemove }: SeriesGroupPr
                   : "flex h-14 w-14 cursor-pointer flex-col items-center justify-center gap-1 rounded-md border border-neutral-300 text-neutral-600 dark:border-neutral-700 dark:text-neutral-400"
               }
             >
-              <input
-                type="checkbox"
-                checked={item.owned}
-                onClick={(event) => event.stopPropagation()}
-                onChange={() => handleToggleOwned(item)}
-                className="h-3.5 w-3.5"
-                aria-label={`Đã sở hữu tập ${item.volume.volumeNumber}`}
+              <AnimatedCheckbox
+                owned={item.owned}
+                onToggle={() => handleToggleOwned(item)}
+                label={`Đã sở hữu tập ${item.volume.volumeNumber}`}
               />
               <span className="text-xs font-semibold">{item.volume.volumeNumber}</span>
             </div>
@@ -133,6 +240,7 @@ function VolumeEditModal({ item, onClose, onSave, onRemove }: VolumeEditModalPro
   const {
     register,
     handleSubmit,
+    watch,
     formState: { errors, isSubmitting },
   } = useForm<EditVolumeFormInput, unknown, EditVolumeFormOutput>({
     resolver: zodResolver(editVolumeFormSchema),
@@ -142,6 +250,11 @@ function VolumeEditModal({ item, onClose, onSave, onRemove }: VolumeEditModalPro
       purchaseDate: item.purchaseDate ? item.purchaseDate.slice(0, 10) : "",
     },
   });
+
+  const priceValue = watch("price");
+  const priceNumber = typeof priceValue === "string" ? Number(priceValue) : Number(priceValue ?? NaN);
+  const pricePreview =
+    Number.isFinite(priceNumber) && priceNumber > 0 ? `${new Intl.NumberFormat("vi-VN").format(priceNumber)} đ` : null;
 
   const submit = async (data: EditVolumeFormOutput) => {
     setFormError(null);
@@ -198,12 +311,14 @@ function VolumeEditModal({ item, onClose, onSave, onRemove }: VolumeEditModalPro
             </label>
             <input
               id="price"
-              type="number"
-              step="0.01"
-              min="0"
+              type="text"
+              inputMode="decimal"
+              autoComplete="off"
               className="w-full rounded-md border border-neutral-300 bg-transparent px-3 py-2 text-sm dark:border-neutral-700"
               {...register("price")}
+              onBeforeInput={handlePriceBeforeInput}
             />
+            {pricePreview && <p className="text-xs text-neutral-500">{pricePreview}</p>}
             {errors.price && <p className="text-sm text-red-600">{errors.price.message}</p>}
           </div>
 
