@@ -65,6 +65,13 @@ export function NavBar() {
                 {isMenuOpen && (
                   <div className="absolute right-0 top-full mt-2 w-40 rounded-md border border-neutral-200 bg-background py-1 shadow-lg dark:border-neutral-800">
                     <Link
+                      href="/dashboard"
+                      className="block px-3 py-2 text-sm hover:bg-neutral-100 dark:hover:bg-neutral-900"
+                      onClick={() => setIsMenuOpen(false)}
+                    >
+                      Thống kê
+                    </Link>
+                    <Link
                       href="/account"
                       className="block px-3 py-2 text-sm hover:bg-neutral-100 dark:hover:bg-neutral-900"
                       onClick={() => setIsMenuOpen(false)}
