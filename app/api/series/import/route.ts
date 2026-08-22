@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { Prisma } from "@/app/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
 import { getCurrentUser } from "@/lib/auth/getCurrentUser";
+import { requireCsrfHeader } from "@/lib/security/csrf";
 import { importSeriesSchema } from "@/lib/validation/series";
 import { fetchMediaById } from "@/lib/anilist";
 
@@ -9,6 +10,9 @@ export async function POST(request: Request) {
   const userId = getCurrentUser(request);
   if (!userId) {
     return NextResponse.json({ error: "Bạn cần đăng nhập" }, { status: 401 });
+  }
+  if (!requireCsrfHeader(request)) {
+    return NextResponse.json({ error: "Yêu cầu không hợp lệ" }, { status: 403 });
   }
 
   const body = await request.json().catch(() => null);

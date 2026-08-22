@@ -1,12 +1,16 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getCurrentUser } from "@/lib/auth/getCurrentUser";
+import { requireCsrfHeader } from "@/lib/security/csrf";
 import { createVolumeSchema } from "@/lib/validation/series";
 
 export async function POST(request: Request, context: RouteContext<"/api/series/[id]/volumes">) {
   const userId = getCurrentUser(request);
   if (!userId) {
     return NextResponse.json({ error: "Bạn cần đăng nhập" }, { status: 401 });
+  }
+  if (!requireCsrfHeader(request)) {
+    return NextResponse.json({ error: "Yêu cầu không hợp lệ" }, { status: 403 });
   }
 
   const { id } = await context.params;

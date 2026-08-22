@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useState } from "react";
+import { CSRF_HEADER } from "@/lib/security/csrf";
 
 interface UseImageUploadResult {
   uploadImage: (file: File) => Promise<string>;
@@ -24,7 +25,9 @@ export function useImageUpload(): UseImageUploadResult {
       const formData = new FormData();
       formData.append("file", file);
 
-      const response = await fetch("/api/upload", { method: "POST", body: formData });
+      // No Content-Type header here — the browser sets the correct multipart boundary
+      // for FormData itself; setting it manually would break the upload.
+      const response = await fetch("/api/upload", { method: "POST", headers: { ...CSRF_HEADER }, body: formData });
       if (!response.ok) {
         throw new Error(await parseErrorMessage(response));
       }

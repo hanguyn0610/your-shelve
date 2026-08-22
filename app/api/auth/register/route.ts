@@ -1,11 +1,17 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { requireCsrfHeader } from "@/lib/security/csrf";
 import { registerSchema } from "@/lib/validation/auth";
 import { hashPassword } from "@/lib/auth/password";
 import { signAccessToken, signRefreshToken } from "@/lib/auth/jwt";
 import { setAuthCookies } from "@/lib/auth/setAuthCookies";
 
 export async function POST(request: Request) {
+  // Public route (no session yet to check), so the CSRF check is the very first thing.
+  if (!requireCsrfHeader(request)) {
+    return NextResponse.json({ error: "Yêu cầu không hợp lệ" }, { status: 403 });
+  }
+
   const body = await request.json().catch(() => null);
   const parsed = registerSchema.safeParse(body);
   if (!parsed.success) {

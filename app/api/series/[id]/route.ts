@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getCurrentUser } from "@/lib/auth/getCurrentUser";
+import { requireCsrfHeader } from "@/lib/security/csrf";
 import { updateSeriesSchema } from "@/lib/validation/series";
 
 export async function GET(_request: Request, context: RouteContext<"/api/series/[id]">) {
@@ -22,6 +23,9 @@ export async function PATCH(request: Request, context: RouteContext<"/api/series
   const userId = getCurrentUser(request);
   if (!userId) {
     return NextResponse.json({ error: "Bạn cần đăng nhập" }, { status: 401 });
+  }
+  if (!requireCsrfHeader(request)) {
+    return NextResponse.json({ error: "Yêu cầu không hợp lệ" }, { status: 403 });
   }
 
   const { id } = await context.params;
@@ -55,6 +59,9 @@ export async function DELETE(request: Request, context: RouteContext<"/api/serie
   const userId = getCurrentUser(request);
   if (!userId) {
     return NextResponse.json({ error: "Bạn cần đăng nhập" }, { status: 401 });
+  }
+  if (!requireCsrfHeader(request)) {
+    return NextResponse.json({ error: "Yêu cầu không hợp lệ" }, { status: 403 });
   }
 
   const { id } = await context.params;

@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { CSRF_HEADER } from "@/lib/security/csrf";
 
 export type CollectionEdition = "REGULAR" | "SPECIAL" | "COLLECTOR";
 
@@ -98,7 +99,7 @@ export function useCollections(seriesId?: string): UseCollectionsResult {
   const updateCollection = useCallback(async (volumeId: string, data: UpdateCollectionInput) => {
     const response = await fetch(`/api/collections/${volumeId}`, {
       method: "PUT",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", ...CSRF_HEADER },
       body: JSON.stringify(data),
     });
     if (!response.ok) {
@@ -121,7 +122,7 @@ export function useCollections(seriesId?: string): UseCollectionsResult {
   }, []);
 
   const removeCollection = useCallback(async (volumeId: string) => {
-    const response = await fetch(`/api/collections/${volumeId}`, { method: "DELETE" });
+    const response = await fetch(`/api/collections/${volumeId}`, { method: "DELETE", headers: { ...CSRF_HEADER } });
     if (!response.ok && response.status !== 404) {
       throw new Error(await parseErrorMessage(response));
     }

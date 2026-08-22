@@ -7,6 +7,7 @@ import { z } from "zod";
 import { updateProfileSchema, changePasswordSchema, type UpdateProfileInput } from "@/lib/validation/account";
 import { useAuth } from "@/lib/auth/AuthContext";
 import type { AuthUser } from "@/lib/auth/authClient";
+import { CSRF_HEADER } from "@/lib/security/csrf";
 
 async function parseErrorMessage(response: Response): Promise<string> {
   const data = await response.json().catch(() => null);
@@ -41,7 +42,7 @@ function ProfileForm({ user }: { user: AuthUser }) {
     try {
       const response = await fetch("/api/users/me", {
         method: "PATCH",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...CSRF_HEADER },
         body: JSON.stringify(values),
       });
       if (!response.ok) {
@@ -142,7 +143,7 @@ function PasswordForm() {
     try {
       const response = await fetch("/api/users/me/password", {
         method: "PATCH",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...CSRF_HEADER },
         body: JSON.stringify({
           currentPassword: values.currentPassword,
           newPassword: values.newPassword,

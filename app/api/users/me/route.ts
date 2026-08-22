@@ -1,12 +1,16 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getCurrentUser } from "@/lib/auth/getCurrentUser";
+import { requireCsrfHeader } from "@/lib/security/csrf";
 import { updateProfileSchema } from "@/lib/validation/account";
 
 export async function PATCH(request: Request) {
   const userId = getCurrentUser(request);
   if (!userId) {
     return NextResponse.json({ error: "Bạn cần đăng nhập" }, { status: 401 });
+  }
+  if (!requireCsrfHeader(request)) {
+    return NextResponse.json({ error: "Yêu cầu không hợp lệ" }, { status: 403 });
   }
 
   const body = await request.json().catch(() => null);

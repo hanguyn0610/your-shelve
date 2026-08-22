@@ -8,6 +8,7 @@ import type { z } from "zod";
 import { createSeriesSchema, type CreateSeriesInput } from "@/lib/validation/series";
 import { useImageUpload } from "@/lib/hooks/useImageUpload";
 import { useAuth } from "@/lib/auth/AuthContext";
+import { CSRF_HEADER } from "@/lib/security/csrf";
 
 const MAX_GENRE_LENGTH = 30;
 const MAX_GENRES = 10;
@@ -98,7 +99,7 @@ export function CreateSeriesForm({ onCreated }: CreateSeriesFormProps) {
     try {
       const response = await fetch("/api/series", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...CSRF_HEADER },
         body: JSON.stringify(values),
       });
       if (!response.ok) {

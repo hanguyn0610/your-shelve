@@ -5,6 +5,7 @@ import Image from "next/image";
 import { useParams } from "next/navigation";
 import { useAuth } from "@/lib/auth/AuthContext";
 import { useCollections } from "@/lib/hooks/useCollections";
+import { CSRF_HEADER } from "@/lib/security/csrf";
 
 interface SeriesVolume {
   id: string;
@@ -115,7 +116,7 @@ export default function SeriesDetailPage() {
     try {
       const response = await fetch(`/api/series/${seriesId}/volumes`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...CSRF_HEADER },
         body: JSON.stringify({ volumeNumber }),
       });
       if (!response.ok) {

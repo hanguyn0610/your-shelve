@@ -1,3 +1,5 @@
+import { CSRF_HEADER } from "@/lib/security/csrf";
+
 export interface AuthUser {
   id: string;
   email: string;
@@ -25,7 +27,7 @@ async function parseErrorMessage(response: Response): Promise<string> {
 export async function login(email: string, password: string): Promise<AuthResponse> {
   const response = await fetch("/api/auth/login", {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", ...CSRF_HEADER },
     body: JSON.stringify({ email, password }),
   });
 
@@ -39,7 +41,7 @@ export async function login(email: string, password: string): Promise<AuthRespon
 export async function register(email: string, password: string, displayName: string): Promise<AuthResponse> {
   const response = await fetch("/api/auth/register", {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", ...CSRF_HEADER },
     body: JSON.stringify({ email, password, displayName }),
   });
 
@@ -52,5 +54,5 @@ export async function register(email: string, password: string, displayName: str
 
 export async function logout(): Promise<void> {
   // httpOnly cookies can't be cleared from client JS — the server has to do it.
-  await fetch("/api/auth/logout", { method: "POST" });
+  await fetch("/api/auth/logout", { method: "POST", headers: { ...CSRF_HEADER } });
 }

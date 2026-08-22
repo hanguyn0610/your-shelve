@@ -8,6 +8,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { upsertCollectionSchema } from "@/lib/validation/collection";
 import { useAuth } from "@/lib/auth/AuthContext";
+import { CSRF_HEADER } from "@/lib/security/csrf";
 import type { CollectionItem, CollectionSeries, UpdateCollectionInput } from "@/lib/hooks/useCollections";
 
 const EDITION_LABEL: Record<string, string> = {
@@ -472,7 +473,7 @@ function AddVolumeModal({ seriesId, suggestedVolumeNumber, onClose, onCreated }:
     try {
       const response = await fetch(`/api/series/${seriesId}/volumes`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...CSRF_HEADER },
         body: JSON.stringify({ volumeNumber }),
       });
       if (!response.ok) {

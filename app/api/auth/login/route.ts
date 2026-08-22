@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { requireCsrfHeader } from "@/lib/security/csrf";
 import { loginSchema } from "@/lib/validation/auth";
 import { verifyPassword } from "@/lib/auth/password";
 import { signAccessToken, signRefreshToken } from "@/lib/auth/jwt";
@@ -13,6 +14,12 @@ const DUMMY_HASH = "$2b$12$wI1VLiYydpVZpHhBiiiwdOavBLsJEEHa0idgam7Bw20wg0ay1WpHu
 const INVALID_CREDENTIALS_MESSAGE = "Email hoặc mật khẩu không đúng";
 
 export async function POST(request: Request) {
+  // This route doesn't require a signed-in session, so the CSRF check goes here at the
+  // very top instead of "right after the auth check" like the other routes.
+  if (!requireCsrfHeader(request)) {
+    return NextResponse.json({ error: "Yêu cầu không hợp lệ" }, { status: 403 });
+  }
+
   const body = await request.json().catch(() => null);
   const parsed = loginSchema.safeParse(body);
   if (!parsed.success) {

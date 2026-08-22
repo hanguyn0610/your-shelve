@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth/getCurrentUser";
+import { requireCsrfHeader } from "@/lib/security/csrf";
 import { uploadImageBuffer } from "@/lib/cloudinary";
 
 const MAX_FILE_SIZE_BYTES = 5 * 1024 * 1024;
@@ -47,6 +48,9 @@ export async function POST(request: Request) {
   const userId = getCurrentUser(request);
   if (!userId) {
     return NextResponse.json({ error: "Bạn cần đăng nhập" }, { status: 401 });
+  }
+  if (!requireCsrfHeader(request)) {
+    return NextResponse.json({ error: "Yêu cầu không hợp lệ" }, { status: 403 });
   }
 
   const formData = await request.formData().catch(() => null);

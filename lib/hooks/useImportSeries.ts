@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth/AuthContext";
+import { CSRF_HEADER } from "@/lib/security/csrf";
 
 async function parseErrorMessage(response: Response): Promise<string> {
   const data = await response.json().catch(() => null);
@@ -42,7 +43,7 @@ export function useImportSeries(): UseImportSeriesResult {
       // — it doesn't trust client-submitted values for SYSTEM data shared by everyone.
       const response = await fetch("/api/series/import", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...CSRF_HEADER },
         body: JSON.stringify({ anilistId }),
       });
       if (!response.ok) {
