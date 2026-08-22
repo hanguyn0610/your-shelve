@@ -4,6 +4,7 @@ import { useState, type MouseEvent } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { motion } from "framer-motion";
 import type { AniListMedia } from "@/lib/anilist";
 import { useAuth } from "@/lib/auth/AuthContext";
 
@@ -59,7 +60,11 @@ export function MediaCard({ media }: { media: AniListMedia }) {
 
   return (
     <Link href="#" onClick={handleClick} className="block">
-      <div className="flex flex-col overflow-hidden rounded-lg border border-neutral-200 dark:border-neutral-800">
+      <motion.div
+        whileHover={{ scale: 1.02, y: -4, zIndex: 10 }}
+        transition={{ type: "spring", stiffness: 300, damping: 20 }}
+        className="relative flex flex-col overflow-hidden rounded-xl border border-neutral-300 shadow-md transition-all duration-200 hover:border-neutral-400 hover:shadow-xl dark:border-neutral-700 dark:hover:border-neutral-600"
+      >
         <div className="relative aspect-2/3 w-full bg-neutral-100 dark:bg-neutral-900">
           {media.coverImage.large && (
             <Image
@@ -83,7 +88,7 @@ export function MediaCard({ media }: { media: AniListMedia }) {
           <p className="line-clamp-2 text-sm font-medium">{title}</p>
           {error && <p className="mt-1 text-xs text-red-600">{error}</p>}
         </div>
-      </div>
+      </motion.div>
     </Link>
   );
 }

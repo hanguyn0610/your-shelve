@@ -1,12 +1,13 @@
 "use client";
 
-import { useEffect, useMemo, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import Image from "next/image";
 import { motion } from "framer-motion";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { upsertCollectionSchema } from "@/lib/validation/collection";
+import { useAuth } from "@/lib/auth/AuthContext";
 import type { CollectionItem, CollectionSeries, UpdateCollectionInput } from "@/lib/hooks/useCollections";
 
 const EDITION_LABEL: Record<string, string> = {
@@ -153,7 +154,9 @@ interface SeriesGroupProps {
 }
 
 export function SeriesGroup({ series, items, onUpdate, onRemove }: SeriesGroupProps) {
+  const { user } = useAuth();
   const [editingItem, setEditingItem] = useState<CollectionItem | null>(null);
+  const [isAddingVolume, setIsAddingVolume] = useState(false);
 
   const sortedItems = useMemo(
     () => [...items].sort((a, b) => a.volume.volumeNumber - b.volume.volumeNumber),
@@ -165,6 +168,12 @@ export function SeriesGroup({ series, items, onUpdate, onRemove }: SeriesGroupPr
     [items],
   );
 
+  // Mirrors the same rule the API itself enforces (see app/api/series/[id]/volumes) —
+  // hiding the "+" button when it doesn't apply, instead of showing it and surfacing a
+  // 403 only after the user tries.
+  const canAddVolume = series.source === "SYSTEM" || series.createdById === user?.id;
+  const maxVolumeNumber = sortedItems.at(-1)?.volume.volumeNumber ?? 0;
+
   const handleToggleOwned = async (item: CollectionItem) => {
     await onUpdate(item.volumeId, {
       owned: !item.owned,
@@ -174,39 +183,69 @@ export function SeriesGroup({ series, items, onUpdate, onRemove }: SeriesGroupPr
     });
   };
 
+  const handleVolumeCreated = async (volume: { id: string }) => {
+    // Simpler than tracking an unowned volume that has no UserCollection row yet: mark
+    // it owned right away (the user was adding it to their shelf, after all) — this
+    // reuses onUpdate exactly like every other cell, so it shows up styled and sorted
+    // the same way with no extra rendering path.
+    await onUpdate(volume.id, { owned: true, edition: "REGULAR" });
+    setIsAddingVolume(false);
+  };
+
   return (
-    <div className="flex gap-4 rounded-lg border border-neutral-200 p-4 dark:border-neutral-800">
-      <div className="relative h-32 w-22 shrink-0 overflow-hidden rounded-md bg-neutral-100 dark:bg-neutral-900 sm:h-40 sm:w-28">
-        {series.coverUrl && (
-          <Image src={series.coverUrl} alt={series.title} fill sizes="120px" className="object-cover" />
-        )}
-      </div>
-
-      <div className="min-w-0 flex-1">
-        <h2 className="truncate text-lg font-semibold">{series.title}</h2>
-        {totalSpent > 0 && <p className="mt-1 text-sm text-neutral-500">Đã chi: {formatCurrency(totalSpent)}</p>}
-
-        <div className="mt-3 flex flex-wrap gap-2">
-          {sortedItems.map((item) => (
-            <div
-              key={item.id}
-              onClick={() => setEditingItem(item)}
-              className={
-                item.owned
-                  ? "flex h-14 w-14 cursor-pointer flex-col items-center justify-center gap-1 rounded-md bg-neutral-900 text-white dark:bg-neutral-100 dark:text-neutral-900"
-                  : "flex h-14 w-14 cursor-pointer flex-col items-center justify-center gap-1 rounded-md border border-neutral-300 text-neutral-600 dark:border-neutral-700 dark:text-neutral-400"
-              }
-            >
-              <AnimatedCheckbox
-                owned={item.owned}
-                onToggle={() => handleToggleOwned(item)}
-                label={`Đã sở hữu tập ${item.volume.volumeNumber}`}
-              />
-              <span className="text-xs font-semibold">{item.volume.volumeNumber}</span>
-            </div>
-          ))}
+    // The two modals below are deliberately siblings of motion.div, not children of it:
+    // framer-motion keeps an inline `transform` on a motion element even at rest, which
+    // would turn it into a containing block for their `position: fixed` overlay and
+    // shrink them down to the card's own box instead of the full viewport.
+    <>
+      <motion.div
+        whileHover={{ scale: 1.02, y: -4, zIndex: 10 }}
+        transition={{ type: "spring", stiffness: 300, damping: 20 }}
+        className="relative flex gap-4 rounded-xl border border-neutral-300 p-4 shadow-md transition-all duration-200 hover:border-neutral-400 hover:shadow-xl dark:border-neutral-700 dark:hover:border-neutral-600"
+      >
+        <div className="relative h-32 w-22 shrink-0 overflow-hidden rounded-md bg-neutral-100 dark:bg-neutral-900 sm:h-40 sm:w-28">
+          {series.coverUrl && (
+            <Image src={series.coverUrl} alt={series.title} fill sizes="120px" className="object-cover" />
+          )}
         </div>
-      </div>
+
+        <div className="min-w-0 flex-1">
+          <h2 className="truncate text-lg font-semibold">{series.title}</h2>
+          {totalSpent > 0 && <p className="mt-1 text-sm text-neutral-500">Đã chi: {formatCurrency(totalSpent)}</p>}
+
+          <div className="mt-3 flex flex-wrap gap-2">
+            {sortedItems.map((item) => (
+              <div
+                key={item.id}
+                onClick={() => setEditingItem(item)}
+                className={
+                  item.owned
+                    ? "flex h-14 w-14 cursor-pointer flex-col items-center justify-center gap-1 rounded-md bg-neutral-900 text-white dark:bg-neutral-100 dark:text-neutral-900"
+                    : "flex h-14 w-14 cursor-pointer flex-col items-center justify-center gap-1 rounded-md border border-neutral-300 text-neutral-600 dark:border-neutral-700 dark:text-neutral-400"
+                }
+              >
+                <AnimatedCheckbox
+                  owned={item.owned}
+                  onToggle={() => handleToggleOwned(item)}
+                  label={`Đã sở hữu tập ${item.volume.volumeNumber}`}
+                />
+                <span className="text-xs font-semibold">{item.volume.volumeNumber}</span>
+              </div>
+            ))}
+
+            {canAddVolume && (
+              <button
+                type="button"
+                onClick={() => setIsAddingVolume(true)}
+                aria-label="Thêm tập mới"
+                className="flex h-14 w-14 cursor-pointer items-center justify-center rounded-md border border-dashed border-neutral-300 text-2xl leading-none font-semibold text-neutral-400 hover:border-neutral-500 hover:text-neutral-600 dark:border-neutral-700 dark:text-neutral-600 dark:hover:border-neutral-500 dark:hover:text-neutral-400"
+              >
+                +
+              </button>
+            )}
+          </div>
+        </div>
+      </motion.div>
 
       {editingItem && (
         <VolumeEditModal
@@ -222,7 +261,16 @@ export function SeriesGroup({ series, items, onUpdate, onRemove }: SeriesGroupPr
           }}
         />
       )}
-    </div>
+
+      {isAddingVolume && (
+        <AddVolumeModal
+          seriesId={series.id}
+          suggestedVolumeNumber={maxVolumeNumber + 1}
+          onClose={() => setIsAddingVolume(false)}
+          onCreated={handleVolumeCreated}
+        />
+      )}
+    </>
   );
 }
 
@@ -362,6 +410,127 @@ function VolumeEditModal({ item, onClose, onSave, onRemove }: VolumeEditModalPro
                 {isSubmitting ? "Đang lưu..." : "Lưu"}
               </button>
             </div>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+interface AddVolumeModalProps {
+  seriesId: string;
+  suggestedVolumeNumber: number;
+  onClose: () => void;
+  onCreated: (volume: { id: string; volumeNumber: number }) => Promise<void>;
+}
+
+async function parseAddVolumeError(response: Response): Promise<string> {
+  const data = await response.json().catch(() => null);
+  return (data?.error as string | undefined) ?? "Có lỗi xảy ra, vui lòng thử lại";
+}
+
+function AddVolumeModal({ seriesId, suggestedVolumeNumber, onClose, onCreated }: AddVolumeModalProps) {
+  const [volumeNumberInput, setVolumeNumberInput] = useState(String(suggestedVolumeNumber));
+  const [error, setError] = useState<string | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  // A ref (not state) so the fetch callback below always sees the latest value even
+  // though the effect itself only runs once per seriesId — a state value read inside
+  // that closure would stay frozen at its value when the effect first ran.
+  const hasEditedInputRef = useRef(false);
+
+  // The parent only knows the volumes *this user* owns, not every volume the series
+  // already has (e.g. a SYSTEM series pre-populated from AniList) — refining the
+  // suggestion against the series' real volume list here avoids suggesting a number
+  // that already exists. Skipped once the user starts typing their own value.
+  useEffect(() => {
+    let cancelled = false;
+    fetch(`/api/series/${seriesId}`)
+      .then((response) => (response.ok ? response.json() : null))
+      .then((data: { volumes?: { volumeNumber: number }[] } | null) => {
+        if (cancelled || hasEditedInputRef.current || !data?.volumes?.length) return;
+        const highestExisting = Math.max(...data.volumes.map((v) => v.volumeNumber));
+        setVolumeNumberInput((current) =>
+          Number(current) <= highestExisting ? String(highestExisting + 1) : current,
+        );
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [seriesId]);
+
+  const submit = async (event: FormEvent) => {
+    event.preventDefault();
+    const volumeNumber = Number(volumeNumberInput);
+    if (!Number.isInteger(volumeNumber) || volumeNumber <= 0) {
+      setError("Số tập phải là số nguyên dương");
+      return;
+    }
+
+    setIsSubmitting(true);
+    setError(null);
+    try {
+      const response = await fetch(`/api/series/${seriesId}/volumes`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ volumeNumber }),
+      });
+      if (!response.ok) {
+        throw new Error(await parseAddVolumeError(response));
+      }
+      const volume = (await response.json()) as { id: string; volumeNumber: number };
+      await onCreated(volume);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Có lỗi xảy ra, vui lòng thử lại");
+      setIsSubmitting(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4" onClick={onClose}>
+      <div
+        onClick={(event) => event.stopPropagation()}
+        className="w-full max-w-xs rounded-lg border border-neutral-200 bg-background p-5 dark:border-neutral-800"
+      >
+        <h3 className="text-base font-semibold">Thêm tập mới</h3>
+
+        <form onSubmit={submit} className="mt-4 space-y-3" noValidate>
+          <div className="space-y-1">
+            <label htmlFor="newVolumeNumber" className="text-sm font-medium">
+              Số tập
+            </label>
+            <input
+              id="newVolumeNumber"
+              type="number"
+              min="1"
+              step="1"
+              autoFocus
+              value={volumeNumberInput}
+              onChange={(event) => {
+                hasEditedInputRef.current = true;
+                setVolumeNumberInput(event.target.value);
+              }}
+              className="w-full rounded-md border border-neutral-300 bg-transparent px-3 py-2 text-sm dark:border-neutral-700"
+            />
+          </div>
+
+          {error && <p className="text-sm text-red-600">{error}</p>}
+
+          <div className="flex justify-end gap-2 pt-2">
+            <button
+              type="button"
+              onClick={onClose}
+              className="rounded-md border border-neutral-300 px-3 py-1.5 text-sm dark:border-neutral-700"
+            >
+              Huỷ
+            </button>
+            <button
+              type="submit"
+              disabled={isSubmitting}
+              className="rounded-md bg-neutral-900 px-3 py-1.5 text-sm font-medium text-white disabled:opacity-50 dark:bg-neutral-100 dark:text-neutral-900"
+            >
+              {isSubmitting ? "Đang thêm..." : "Thêm"}
+            </button>
           </div>
         </form>
       </div>
