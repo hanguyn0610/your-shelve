@@ -2,6 +2,7 @@
 
 import { useTrending } from "@/lib/hooks/useTrending";
 import { MediaCard } from "@/components/discover/MediaCard";
+import { SearchBar } from "@/components/discover/SearchBar";
 import type { MediaFormatFilter } from "@/lib/anilist";
 
 const TABS: { value: MediaFormatFilter; label: string }[] = [
@@ -15,6 +16,10 @@ export default function DiscoverPage() {
   return (
     <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-6">
       <h1 className="text-2xl font-semibold">Trending</h1>
+
+      <div className="mt-4 max-w-md">
+        <SearchBar />
+      </div>
 
       <div className="mt-4 flex gap-2">
         {TABS.map((tab) => (
