@@ -1,0 +1,30 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  security-audit:
+    name: Security audit (npm audit vs. accepted advisories)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      # Fails only on a high/critical advisory NOT already logged (with reasoning) in
+      # docs/SECURITY_ADVISORIES.md — see scripts/check-security-advisories.mjs and
+      # that document for how/why an advisory gets accepted instead of patched.
+      - name: Check for unreviewed high/critical advisories
+        run: node scripts/check-security-advisories.mjs
